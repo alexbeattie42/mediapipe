@@ -76,7 +76,7 @@ class Tensor {
 
  public:
   // No resources are allocated here.
-  enum class ElementType { kNone, kFloat16, kFloat32 };
+  enum class ElementType { kNone, kFloat16, kFloat32, kUInt8, kInt8 };
   struct Shape {
     Shape() = default;
     Shape(std::initializer_list<int> dimensions) : dims(dimensions) {}
@@ -215,6 +215,10 @@ class Tensor {
         return 2;
       case ElementType::kFloat32:
         return sizeof(float);
+      case ElementType::kUInt8:
+        return 1;
+      case ElementType::kInt8:
+        return 1;
     }
   }
   int bytes() const { return shape_.num_elements() * element_size(); }
@@ -266,13 +270,22 @@ class Tensor {
   mutable GLuint frame_buffer_ = GL_INVALID_INDEX;
   mutable int texture_width_;
   mutable int texture_height_;
+#ifdef __EMSCRIPTEN__
+  mutable bool texture_is_half_float_ = false;
+#endif  // __EMSCRIPTEN__
   void AllocateOpenGlTexture2d() const;
 #if MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_31
   mutable GLuint opengl_buffer_ = GL_INVALID_INDEX;
   void AllocateOpenGlBuffer() const;
 #endif  // MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_31
+  bool NeedsHalfFloatRenderTarget() const;
 #endif  // MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_30
 };
+
+int BhwcBatchFromShape(const Tensor::Shape& shape);
+int BhwcHeightFromShape(const Tensor::Shape& shape);
+int BhwcWidthFromShape(const Tensor::Shape& shape);
+int BhwcDepthFromShape(const Tensor::Shape& shape);
 
 }  // namespace mediapipe
 
