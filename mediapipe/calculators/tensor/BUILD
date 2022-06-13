@@ -26,6 +26,13 @@ licenses(["notice"])
 
 package(default_visibility = ["//visibility:private"])
 
+exports_files(
+    glob(["testdata/image_to_tensor/*"]),
+    visibility = [
+        "//mediapipe/calculators/image:__subpackages__",
+    ],
+)
+
 selects.config_setting_group(
     name = "compute_shader_unavailable",
     match_any = [
@@ -59,15 +66,16 @@ cc_library(
         ":inference_calculator_cc_proto",
         "//mediapipe/framework:calculator_framework",
         "//mediapipe/framework/api2:node",
+        "//mediapipe/framework/api2:packet",
         "//mediapipe/framework/formats:tensor",
         "//mediapipe/framework/port:ret_check",
         "//mediapipe/framework/stream_handler:fixed_size_input_stream_handler",
         "//mediapipe/framework/tool:subgraph_expansion",
-        "//mediapipe/util/tflite:config",
         "//mediapipe/util/tflite:tflite_model_loader",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@org_tensorflow//tensorflow/lite:framework",
+        "@org_tensorflow//tensorflow/lite/core/api:op_resolver",
         "@org_tensorflow//tensorflow/lite/kernels:builtin_ops",
     ],
     alwayslink = 1,
@@ -79,14 +87,16 @@ cc_library(
     tags = ["nomac"],  # config problem with cpuinfo via TF
     deps = [
         "inference_calculator_interface",
+        "//mediapipe/framework/deps:file_path",
         "//mediapipe/gpu:gl_calculator_helper",
         "//mediapipe/gpu:gpu_buffer",
+        "//mediapipe/util/tflite:config",
         "//mediapipe/util/tflite:tflite_gpu_runner",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@org_tensorflow//tensorflow/lite:framework_stable",
         "@org_tensorflow//tensorflow/lite/delegates/gpu:gl_delegate",
         "@org_tensorflow//tensorflow/lite/delegates/gpu/common:shape",
-        "@org_tensorflow//tensorflow/lite/delegates/gpu/gl:gl_buffer",
-        "@org_tensorflow//tensorflow/lite/delegates/gpu/gl:gl_program",
-        "@org_tensorflow//tensorflow/lite/delegates/gpu/gl:gl_shader",
     ],
     alwayslink = 1,
 )
@@ -136,6 +146,8 @@ cc_library(
         ":inference_calculator_interface",
         "@com_google_absl//absl/memory",
         "@org_tensorflow//tensorflow/lite/delegates/xnnpack:xnnpack_delegate",
+        "@org_tensorflow//tensorflow/lite:framework_stable",
+        "@org_tensorflow//tensorflow/lite/c:c_api_types",
     ] + select({
         "//conditions:default": [
             "//mediapipe/util:cpu_util",
@@ -149,7 +161,7 @@ cc_library(
 
 cc_library(
     name = "inference_calculator_gl_if_compute_shader_available",
-    deps = select({
+    deps = selects.with_or({
         ":compute_shader_unavailable": [],
         "//conditions:default": [":inference_calculator_gl"],
     }),
@@ -298,7 +310,7 @@ cc_library(
         "//mediapipe/framework/formats:tensor",
         "//mediapipe/framework/formats/object_detection:anchor_cc_proto",
         "//mediapipe/framework/port:ret_check",
-    ] + select({
+    ] + selects.with_or({
         ":compute_shader_unavailable": [],
         "//conditions:default": [":tensors_to_detections_calculator_gpu_deps"],
     }),
@@ -349,6 +361,57 @@ cc_library(
         "//mediapipe/framework/port:ret_check",
     ],
     alwayslink = 1,
+)
+
+mediapipe_proto_library(
+    name = "landmarks_to_tensor_calculator_proto",
+    srcs = ["landmarks_to_tensor_calculator.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//mediapipe/framework:calculator_options_proto",
+        "//mediapipe/framework:calculator_proto",
+    ],
+)
+
+cc_library(
+    name = "landmarks_to_tensor_calculator",
+    srcs = ["landmarks_to_tensor_calculator.cc"],
+    hdrs = ["landmarks_to_tensor_calculator.h"],
+    copts = select({
+        "//mediapipe:apple": [
+            "-x objective-c++",
+            "-fobjc-arc",  # enable reference-counting
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":landmarks_to_tensor_calculator_cc_proto",
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework/api2:node",
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "//mediapipe/framework/formats:tensor",
+        "//mediapipe/framework/port:ret_check",
+    ],
+    alwayslink = 1,
+)
+
+cc_test(
+    name = "landmarks_to_tensor_calculator_test",
+    srcs = ["landmarks_to_tensor_calculator_test.cc"],
+    deps = [
+        ":landmarks_to_tensor_calculator",
+        ":landmarks_to_tensor_calculator_cc_proto",
+        "//mediapipe/framework:calculator_cc_proto",
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework:calculator_runner",
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "//mediapipe/framework/formats:tensor",
+        "//mediapipe/framework/port:gtest_main",
+        "//mediapipe/framework/port:parse_text_proto",
+        "@com_google_absl//absl/memory",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 mediapipe_proto_library(
@@ -504,7 +567,7 @@ cc_library(
 
 cc_library(
     name = "image_to_tensor_calculator_gpu_deps",
-    deps = select({
+    deps = selects.with_or({
         "//mediapipe:android": [
             ":image_to_tensor_converter_gl_buffer",
             "//mediapipe/gpu:gl_calculator_helper",
@@ -628,7 +691,7 @@ cc_library(
     name = "image_to_tensor_converter_gl_buffer",
     srcs = ["image_to_tensor_converter_gl_buffer.cc"],
     hdrs = ["image_to_tensor_converter_gl_buffer.h"],
-    deps = ["//mediapipe/framework:port"] + select({
+    deps = ["//mediapipe/framework:port"] + selects.with_or({
         "//mediapipe:apple": [],
         "//conditions:default": [
             ":image_to_tensor_converter",
