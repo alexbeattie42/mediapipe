@@ -379,7 +379,7 @@ class HolderBase {
   // empty string.
   virtual const std::string RegisteredTypeName() const = 0;
   // Get the type id of the underlying data type.
-
+  virtual const tool::TypeInfo& GetTypeInfo() const = 0;
   virtual size_t GetTypeId() const = 0;
   virtual const void * const GetRaw() const = 0; // UMP
 
@@ -516,9 +516,12 @@ class Holder : public HolderBase {
     return *ptr_;
   }
 
+  const tool::TypeInfo& GetTypeInfo() const final {
+      return tool::TypeInfo::Get<T>();
+  }
   size_t GetTypeId() const final { return tool::GetTypeHash<T>(); }
   const void * const GetRaw() const final { return &data(); } // UMP
-  
+
   // Releases the underlying data pointer and transfers the ownership to a
   // unique pointer.
   // This method is dangerous and is only used by Packet::Consume() if the
@@ -810,3 +813,4 @@ inline std::shared_ptr<HolderBase> GetHolderShared(Packet&& packet) {
 }  // namespace mediapipe
 
 #endif  // MEDIAPIPE_FRAMEWORK_PACKET_H_
+
